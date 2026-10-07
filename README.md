@@ -16,7 +16,7 @@ No hosted project credentials have been supplied, no migration has been executed
 
 ## Use
 
-The home screen and sidebar list available pages. Anyone can read notes and attachments. Log in to create a mind map, add notes, format text or upload images. Owners alone can rename/delete pages, edit notes, move nodes or change images. Other account holders read those pages. Signed-out and offline visitors cannot write. Database/storage policies enforce permissions for direct API requests as well as the UI.
+The home screen and sidebar list available pages. Anyone can read notes and attachments. The public home shows **Log in** and **Create an account** buttons; email/password fields appear on a separate account screen. Signup adds **Confirm password** and rejects mismatches before contacting Supabase. **Back to public home** returns to the public list. Guests choosing **Create page** first log in, then continue to the page-name prompt; signed-in users create directly. A signup that requires email confirmation returns to login with instructions. Log in to create a mind map, add notes, format text or upload images. Owners alone can rename/delete pages, edit notes, move nodes or change images. Other account holders read those pages. Signed-out and offline visitors cannot write. Database/storage policies enforce permissions for direct API requests as well as the UI.
 
 Changes are debounced; wait for **Saved to server**. A failed save retains its draft in memory and offers **Retry save**; closing/reloading can lose that unsaved draft. Logout flushes pending writes before signing out. If a session expires or is changed outside the app, editor access and in-memory queues are cleared to prevent a different account from inheriting pending writes.
 

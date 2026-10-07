@@ -1,6 +1,6 @@
 # Current workflow
 
-Stage: guide report ready for user verification; local integration independently tested, hosted backend verification BLOCKED pending project connection. No deployment authorized.
+Stage: approved account-screen UI follow-up implemented; awaiting independent tester, then guide/user verification. No deployment authorized.
 
 User approved Supabase proposal with “ok. set this up for backend for me” on 2026-10-04. Scope: email/password signup/login/logout, public pages/notes/images, signed-in creation, owner-only editing/deletion with database/storage enforcement, explicit import of retained local IndexedDB records. Exclusions: offline writing, collaboration, private cloud pages, deployment and external project provisioning without project access.
 
@@ -35,3 +35,19 @@ Tester fingerprint (application/migration unchanged from builder snapshot): test
 ## Guide handoff — 2026-10-04
 
 Report and numbered setup/manual checks recorded in docs/workflow/verification.md. No application edits or deployment. No active server found on localhost:5173; preview requires starting Vite after configuration. User verification and project connection are pending.
+
+
+## Approved account-screen follow-up — 2026-10-07
+
+User approved the coordinator's revised UI plan and confirmed email/password is sufficient. Scope: keep public home/page reading; replace inline authentication fields with Log in / Create an account buttons; dedicated account screens; signup Confirm password matching before signup API call; return to public home; guest Create page routes through login and then continues creation; signed-in creation remains direct. Excludes auth/provider/database/data changes and deployment.
+
+Acceptance criteria: no email/password fields on initial public home; account buttons open correct forms; signup mismatch issues no signup request; Back to public home restores public listing even when account screen was opened from a note; guest successful login resumes requested creation; signed-in creation uses existing owner flow. Existing auth/permissions/IndexedDB originals unchanged.
+
+Builder evidence: `npm run typecheck` passed, `npm test` passed 8/8, `npm run build` passed (bundle-size advisory), `npm run test:e2e` passed 10/10 Chromium tests. Three new browser cases verify screen navigation/home preservation, password mismatch/no request plus email-confirmation response, guest login continuation and signed-in creation. Existing seven checks adapted for account-screen login and Create page label; permissions/logout/offline/image behavior still pass. Account-screen screenshot visually inspected at tests/screenshots/account-screen.png. Existing React Flow ResizeObserver and transient image empty-src warnings recur; checks pass.
+
+Tested source fingerprints (base git revision c7310b6; implementation commit follows this workflow record):
+- App SHA256 f549a77f9fb14a26a73a4dd62e3f491d22ce40ab7a347a48c1e1efd39f322a11
+- style SHA256 3250a25f6d55d8a8ab23927ac6aae10dc517932fb19a64af3d7108ab46efdccb
+- e2e SHA256 816c5d14809f393b5c7544f7b7058933d009c17ee77f99b4accf4ec4cc646ff5
+
+Test transport is mocked: no hosted API/SQL/SMTP checks were performed in this UI stage. No deployment. `.env.local` contents were not read or exposed. Pre-existing user edits to package.json/package-lock.json preserved and excluded from task commit. Git is now available; task implementation/workflow are committed together without unrelated files. Next: independent tester, repair any actionable failures, then guide report/user verification. Deployment requires separate explicit approval of tested revision/target.

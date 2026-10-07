@@ -77,6 +77,7 @@ async function backend(page: Page, user?: string, fail = false) {
   return mutations;
 }
 async function login(page: Page) {
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.getByLabel("Email", { exact: true }).fill("reader@example.com");
   await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
@@ -105,7 +106,7 @@ test("guest and other account can read but cannot edit", async ({ page }) => {
   await open(page);
   await expect(page.locator("#node-title")).toBeDisabled();
   await expect(
-    page.getByRole("button", { name: "New mind map", exact: true }),
+    page.getByRole("button", { name: "Create page", exact: true }).first(),
   ).toBeEnabled();
   expect(mutations).toEqual([]);
 });
@@ -144,60 +145,205 @@ test("failed cloud save remains visible and prevents note navigation", async ({
   await expect(page.locator(".tiptap")).toHaveText("Unsaved draft");
 });
 
-test("immediate logout flushes the current draft before removing the session", async ({ page }) => {
+test("immediate logout flushes the current draft before removing the session", async ({
+  page,
+}) => {
   await backend(page, owner);
   await page.goto("/");
   await login(page);
   await open(page);
   await page.locator("#node-title").fill("Draft immediately before logout");
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.getByRole("button", { name: "Log in", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Log in", exact: true }),
+  ).toBeVisible();
   await open(page, "Draft immediately before logout");
 });
 
-test("a failed pending save blocks logout and preserves the draft", async ({ page }) => {
+test("a failed pending save blocks logout and preserves the draft", async ({
+  page,
+}) => {
   await backend(page, owner, true);
   await page.goto("/");
   await login(page);
   await open(page);
   await page.locator("#node-title").fill("Retain this unsaved title");
   await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page.getByRole("alert")).toContainText("Simulated permission failure");
+  await expect(page.getByRole("alert")).toContainText(
+    "Simulated permission failure",
+  );
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
-  await expect(page.locator("#node-title")).toHaveValue("Retain this unsaved title");
+  await expect(page.locator("#node-title")).toHaveValue(
+    "Retain this unsaved title",
+  );
 });
 
-test("offline locks existing owner notes and creation while preserving readable content", async ({ page, context }) => {
+test("offline locks existing owner notes and creation while preserving readable content", async ({
+  page,
+  context,
+}) => {
   const mutations = await backend(page, owner);
   await page.goto("/");
   await login(page);
   await open(page);
   await context.setOffline(true);
   await expect(page.locator("#node-title")).toBeDisabled();
-  await expect(page.locator(".tiptap")).toHaveAttribute("contenteditable", "false");
+  await expect(page.locator(".tiptap")).toHaveAttribute(
+    "contenteditable",
+    "false",
+  );
   await expect(page.locator(".tiptap")).toHaveText("Public contents");
-  await expect(page.getByRole("button", { name: "New mind map", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Create page", exact: true }).first(),
+  ).toBeDisabled();
   expect(mutations).toEqual([]);
   await context.setOffline(false);
   await expect(page.locator("#node-title")).toBeEnabled();
 });
 
-test("guest renders downloaded attachment bytes with caption controls locked", async ({ page }) => {
+test("guest renders downloaded attachment bytes with caption controls locked", async ({
+  page,
+}) => {
   await backend(page);
-  await page.route("**/rest/v1/images*", async (route) => route.fulfill({ json: [{
-    id: "55555555-5555-4555-8555-555555555555", nodeId, mapId,
-    path: `${owner}/${mapId}/image`, caption: "Public picture", createdAt: 1,
-  }] }));
-  await page.route("**/storage/v1/object/note-images/**", async (route) => route.fulfill({
-    contentType: "image/png",
-    body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXioAAAAASUVORK5CYII=", "base64"),
-  }));
+  await page.route("**/rest/v1/images*", async (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "55555555-5555-4555-8555-555555555555",
+          nodeId,
+          mapId,
+          path: `${owner}/${mapId}/image`,
+          caption: "Public picture",
+          createdAt: 1,
+        },
+      ],
+    }),
+  );
+  await page.route("**/storage/v1/object/note-images/**", async (route) =>
+    route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXioAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    }),
+  );
   await page.goto("/");
   await open(page);
   const picture = page.getByRole("img", { name: "Public picture" });
   await expect(picture).toBeVisible();
-  await expect.poll(() => picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
+  await expect
+    .poll(() => picture.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(1);
   await expect(page.getByLabel("Image caption")).toHaveValue("Public picture");
   await expect(page.getByLabel("Image caption")).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Remove attached image" })).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Remove attached image" }),
+  ).toBeHidden();
+});
+
+test("public home hides auth fields and account screens can return home", async ({
+  page,
+}) => {
+  await backend(page);
+  await page.goto("/");
+  await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Public page", exact: true }).last(),
+  ).toBeVisible();
+  await open(page);
+  await page
+    .getByRole("button", { name: "Create an account", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Confirm password", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back to public home" }).click();
+  await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Give an idea somewhere to grow." }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("Confirm password", { exact: true }),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: "tests/screenshots/account-screen.png",
+    fullPage: true,
+  });
+});
+test("signup validates confirmation before requests and shows email confirmation", async ({
+  page,
+}) => {
+  await backend(page);
+  let signups = 0;
+  await page.route("**/auth/v1/signup", async (route) => {
+    signups++;
+    await route.fulfill({
+      json: { user: { id: owner, email: "reader@example.com" }, session: null },
+    });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Create an account", exact: true })
+    .click();
+  await page.getByLabel("Email", { exact: true }).fill("reader@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("password123");
+  await page
+    .getByLabel("Confirm password", { exact: true })
+    .fill("different123");
+  await page
+    .getByRole("button", { name: "Create an account", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("Passwords do not match");
+  expect(signups).toBe(0);
+  await page
+    .getByLabel("Confirm password", { exact: true })
+    .fill("password123");
+  await page
+    .getByRole("button", { name: "Create an account", exact: true })
+    .click();
+  await expect(page.getByRole("status").last()).toContainText(
+    "Check your email",
+  );
+  expect(signups).toBe(1);
+  await expect(
+    page.getByRole("heading", { name: "Log in", exact: true }),
+  ).toBeVisible();
+});
+test("guest page creation resumes after login and signed-in creation is direct", async ({
+  page,
+}) => {
+  await backend(page);
+  let created = 0;
+  await page.route("**/rest/v1/rpc/create_page", async (route) => {
+    created++;
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Create page", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Log in", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Email", { exact: true }).fill("reader@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("password123");
+  page.once("dialog", (d) => d.accept("Created after login"));
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Created after login", exact: true }),
+  ).toBeVisible();
+  expect(created).toBe(1);
+  page.once("dialog", (d) => d.accept("Direct creation"));
+  await page
+    .getByRole("button", { name: "Create page", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Direct creation", exact: true }),
+  ).toBeVisible();
+  expect(created).toBe(2);
 });

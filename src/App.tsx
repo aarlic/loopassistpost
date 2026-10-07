@@ -102,6 +102,11 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
+  const [accountScreen, setAccountScreen] = useState<"login" | "signup" | null>(
+    null,
+  );
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [createAfterLogin, setCreateAfterLogin] = useState(false);
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const canEdit =
@@ -251,15 +256,67 @@ export default function App() {
     await flush();
     setSelected(id);
   }
-  async function newMap() {
-    if (!session || offline)
+  async function newMap(authenticatedSession = session) {
+    if (!authenticatedSession || offline)
       throw Error("Log in and connect to create a page.");
     const title = window.prompt("Name your new mind map", "Untitled map");
     if (!title?.trim()) return;
     await flush();
-    const { map } = await newCloudMap(title.trim(), session.user.id);
+    const { map } = await newCloudMap(
+      title.trim(),
+      authenticatedSession.user.id,
+    );
     setMaps((ms) => [...ms, map]);
     await openMap(map.id);
+  }
+  function showAccount(mode: "login" | "signup", createPage = false) {
+    setError("");
+    setNotice("");
+    setPassword("");
+    setConfirmPassword("");
+    setCreateAfterLogin(createPage);
+    setAccountScreen(mode);
+  }
+  function backHome() {
+    setMapId("");
+    setNodes([]);
+    setSelected("");
+    setAccountScreen(null);
+    setPassword("");
+    setConfirmPassword("");
+    setCreateAfterLogin(false);
+    setError("");
+  }
+  async function requestPage() {
+    if (!session) {
+      showAccount("login", true);
+      return;
+    }
+    await newMap();
+  }
+  async function authenticate() {
+    if (!supabase)
+      throw Error("Backend not configured. See README for Supabase setup.");
+    if (accountScreen === "signup" && password !== confirmPassword)
+      throw Error("Passwords do not match.");
+    const { data, error } =
+      accountScreen === "signup"
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    setPassword("");
+    setConfirmPassword("");
+    if (!data.session) {
+      setNotice("Check your email to confirm your account, then log in.");
+      setAccountScreen("login");
+      return;
+    }
+    setAccountScreen(null);
+    setNotice("");
+    if (createAfterLogin) {
+      setCreateAfterLogin(false);
+      await newMap(data.session);
+    }
   }
   async function add(sibling = false) {
     if (!canEdit || !note) return;
@@ -347,7 +404,7 @@ export default function App() {
   }));
   return (
     <div className="app">
-      {sidebar && (
+      {sidebar && !accountScreen && (
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-icon">
@@ -367,10 +424,10 @@ export default function App() {
           <div className="workspace-label">PUBLIC NOTE PAGES</div>
           <button
             className="new-map"
-            disabled={busy || loading || !session || offline}
-            onClick={() => void action(newMap)}
+            disabled={busy || loading || offline}
+            onClick={() => void action(requestPage)}
           >
-            <Plus size={17} /> New mind map
+            <Plus size={17} /> Create page
           </button>
           <div className="sidebar-heading">
             AVAILABLE PAGES <span>{maps.length}</span>
@@ -391,11 +448,12 @@ export default function App() {
           </nav>
           <div className="sidebar-bottom">
             <p>Published pages are readable by everyone.</p>
-            {!supabase ? (
+            {!supabase && (
               <div role="alert">
                 Backend not configured. See README for Supabase setup.
               </div>
-            ) : session ? (
+            )}
+            {session ? (
               <>
                 <p>Signed in as {session.user.email}</p>
                 <button
@@ -432,67 +490,14 @@ export default function App() {
                 </button>
               </>
             ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void action(async () => {
-                    const { error } = await supabase!.auth.signInWithPassword({
-                      email,
-                      password,
-                    });
-                    if (error) throw error;
-                    setPassword("");
-                  });
-                }}
-              >
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    minLength={8}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </label>
-                <button disabled={busy}>Log in</button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    void action(async () => {
-                      if (!email || password.length < 8)
-                        throw Error(
-                          "Enter an email and a password of at least 8 characters.",
-                        );
-                      const { data, error } = await supabase!.auth.signUp({
-                        email,
-                        password,
-                      });
-                      if (error) throw error;
-                      setNotice(
-                        data.session
-                          ? "Account created."
-                          : "Check your email to confirm your account before logging in.",
-                      );
-                      setPassword("");
-                    })
-                  }
-                >
-                  Create account
+              <div className="account-buttons">
+                <button disabled={busy} onClick={() => showAccount("login")}>
+                  Log in
                 </button>
-              </form>
+                <button disabled={busy} onClick={() => showAccount("signup")}>
+                  Create an account
+                </button>
+              </div>
             )}
             {notice && <p role="status">{notice}</p>}
             <div className="version">BRANCH / VERSION 1.0</div>
@@ -511,9 +516,29 @@ export default function App() {
                 <Menu size={18} />
               </button>
             )}
-            <span>My workspace</span>
+            <button
+              className="home-link"
+              disabled={busy}
+              onClick={() =>
+                void action(async () => {
+                  await flush();
+                  backHome();
+                  setMapId("");
+                  setNodes([]);
+                  setSelected("");
+                })
+              }
+            >
+              Public home
+            </button>
             <ChevronRight size={14} />
-            <strong>{current?.title ?? "Mind maps"}</strong>
+            <strong>
+              {accountScreen
+                ? accountScreen === "login"
+                  ? "Log in"
+                  : "Create an account"
+                : (current?.title ?? "Public notes")}
+            </strong>
           </div>
           <div className="save-status" role="status">
             {offline && (
@@ -546,7 +571,104 @@ export default function App() {
             )}
           </div>
         )}
-        {loading ? (
+        {accountScreen ? (
+          <section className="account-screen" aria-labelledby="account-heading">
+            <div className="account-card">
+              <button className="home-link" disabled={busy} onClick={backHome}>
+                Back to public home
+              </button>
+              <h1 id="account-heading">
+                {accountScreen === "login" ? "Log in" : "Create an account"}
+              </h1>
+              <p>
+                {createAfterLogin
+                  ? "Log in to create your page."
+                  : "Use your email and password to manage your pages."}
+              </p>
+              {!supabase && (
+                <p role="alert">
+                  Backend not configured. See README for Supabase setup.
+                </p>
+              )}
+              {notice && <p role="status">{notice}</p>}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void action(authenticate);
+                }}
+              >
+                <label htmlFor="account-email">Email</label>
+                <input
+                  id="account-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  disabled={busy}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <label htmlFor="account-password">Password</label>
+                <input
+                  id="account-password"
+                  type="password"
+                  autoComplete={
+                    accountScreen === "signup"
+                      ? "new-password"
+                      : "current-password"
+                  }
+                  minLength={8}
+                  required
+                  disabled={busy}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                {accountScreen === "signup" && (
+                  <>
+                    <label htmlFor="account-confirm">Confirm password</label>
+                    <input
+                      id="account-confirm"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                      disabled={busy}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                  </>
+                )}
+                <button
+                  className="primary"
+                  disabled={busy || offline || !supabase}
+                  type="submit"
+                >
+                  {busy
+                    ? "Please wait…"
+                    : accountScreen === "login"
+                      ? "Log in"
+                      : "Create an account"}
+                </button>
+              </form>
+              <button
+                className="account-switch"
+                disabled={busy}
+                onClick={() => {
+                  setAccountScreen(
+                    accountScreen === "login" ? "signup" : "login",
+                  );
+                  setPassword("");
+                  setConfirmPassword("");
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                {accountScreen === "login"
+                  ? "Create an account"
+                  : "Already have an account? Log in"}
+              </button>
+            </div>
+          </section>
+        ) : loading ? (
           <div className="empty">
             <Leaf size={34} />
             <h2>Opening your workspace…</h2>
@@ -571,11 +693,11 @@ export default function App() {
             </div>
             <button
               className="primary"
-              onClick={() => void action(newMap)}
-              disabled={busy || !session || offline}
+              onClick={() => void action(requestPage)}
+              disabled={busy || offline}
             >
               {" "}
-              <Plus size={17} /> Create a mind map
+              <Plus size={17} /> Create page
             </button>
           </div>
         ) : (
