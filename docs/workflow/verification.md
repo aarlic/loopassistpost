@@ -1,3 +1,26 @@
+# Account-screen change report — 2026-10-07
+
+The public home now shows Log in and Create an account buttons. Email/password fields appear on dedicated screens. Signup requires matching Confirm password. Back to public home restores the public list. A guest choosing Create page logs in and then continues to the page-name prompt; signed-in users create directly.
+
+Tested application revision: `e08bcd1732716f7c6bd06034e5e0457910c2c938`. Independent verification revision: `29cd57e` (test/workflow changes only).
+
+Already performed: independent typecheck, 8 unit tests, build and 13 actual Chromium browser tests passed. Desktop account-screen screenshot was visually checked. Tests use mocked backend responses; hosted signup, email delivery, SQL/RLS and Storage remain unperformed. Existing bundle-size/React Flow/image warnings persist without an actionable acceptance failure.
+
+Preview: no active server was found on port 5173. Start `npm run dev` and open the URL Vite prints (normally http://localhost:5173). See README for Supabase setup. No deployment was performed.
+
+## User verification
+
+1. Open public home signed out. Expected: available pages remain readable, Log in/Create an account buttons appear, and no email/password fields appear on home.
+2. Open Create an account and enter different Password/Confirm password values. Expected: mismatch error and no signup request. Matching values permit submission; a confirmation-required backend response shows email instructions and returns to login.
+3. From a public note, open Log in, then choose Back to public home. Expected: public listing returns. For a guest, choose Create page and successfully log in. Expected: page-name prompt continues; going home before login cancels this continuation.
+4. While signed in, choose Create page. Expected: page-name prompt opens directly. With an invalid login or signup rejected by the backend, expected: visible error and no authenticated editing access.
+
+Known limits: real hosted authentication has not been verified. Password-reset UI, private pages, collaboration and offline writing are outside scope. Existing partial-import duplicates and orphan-storage limitations still apply. Deployment needs separate approval of the tested revision and target.
+
+---
+
+## Earlier backend setup report — historical
+
 # Supabase change report — 2026-10-04
 
 The application integration is implemented. The hosted backend is not provisioned yet: there is no connected Supabase project, migration execution or deployment. No active local preview server was found on port 5173. After configuration, `npm run dev` normally serves http://localhost:5173; use the URL Vite prints if that port is occupied.
