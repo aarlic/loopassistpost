@@ -347,3 +347,40 @@ test("guest page creation resumes after login and signed-in creation is direct",
   ).toBeVisible();
   expect(created).toBe(2);
 });
+
+for (const mode of ["login", "signup"] as const) {
+  test(`${mode} server errors remain visible without granting a session`, async ({ page }) => {
+    await backend(page);
+    await page.route(mode === "login" ? "**/auth/v1/token*" : "**/auth/v1/signup", async (route) => {
+      await route.fulfill({ status: 400, json: { msg: "Rejected test credentials", error_code: "invalid_credentials" } });
+    });
+    await page.goto("/");
+    const button = mode === "login" ? "Log in" : "Create an account";
+    await page.getByRole("button", { name: button, exact: true }).click();
+    await page.getByLabel("Email", { exact: true }).fill("reader@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("password123");
+    if (mode === "signup") await page.getByLabel("Confirm password", { exact: true }).fill("password123");
+    await page.getByRole("button", { name: button, exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Rejected test credentials");
+    await expect(page.getByRole("heading", { name: button, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Log out" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Back to public home" }).click();
+    await open(page);
+    await expect(page.locator("#node-title")).toBeDisabled();
+  });
+}
+
+test("returning home cancels deferred guest page creation", async ({ page }) => {
+  await backend(page);
+  let creations = 0;
+  await page.route("**/rest/v1/rpc/create_page", async (route) => {
+    creations++;
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create page", exact: true }).first().click();
+  await page.getByRole("button", { name: "Back to public home" }).click();
+  await login(page);
+  await expect(page.getByRole("heading", { name: "Give an idea somewhere to grow." })).toBeVisible();
+  expect(creations).toBe(0);
+});
