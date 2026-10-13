@@ -16,6 +16,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@tiptap/extension-task-item": "^3.31.4",
     "@tiptap/extension-task-list": "^3.31.4",
